@@ -5,9 +5,9 @@ export default {
   input: 'index.js'
 , output: { 
     file: 'xoox.bundle.js' 
+  , name: 'x'
   , format: 'iife'
   } 
-, name: 'x'
 , plugins: [
     nodeResolve({ browser: true })
   , commonjs({ ignoreGlobal: true })

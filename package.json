@@ -26,6 +26,7 @@
   "dependencies": {
     "utilise": "^2.3.6",
     "xoox-filter": "^1.0.1",
+    "xoox-flatten": "^1.0.1",
     "xoox-map": "^1.0.1",
     "xoox-transform": "^1.0.1",
     "xoox-until": "^1.0.1"
