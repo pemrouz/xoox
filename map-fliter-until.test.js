@@ -959,3 +959,17 @@ test('without helper functions (array.reduce)', async ({ same, plan }) => {
   , [3,9,15,21,27]
   )
 })
+
+test('piping to null', async ({ same, plan }) => {
+  plan(2)
+  const results = []
+
+  same(
+    transform(inputs.array, null)(
+      map(d => results.push(d))
+    )
+  , null
+  )
+
+  same(results, inputs.array)
+})
