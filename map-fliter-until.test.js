@@ -1,10 +1,10 @@
 // This file tests transforms between all the possible permutations 
 // of Array, Object, Function, Generator, AsyncGenerator and Observable as the input and output
-// There also tests showing how to compose the operators and use them without the transform heloer function
+// There also tests showing how to compose the operators and use them without the transform helper function
 const { test } = require('tap')
     , { map, filter, transform, until, compose } = require('./')
     , observable = require('./observable')
-    , prime = (gen, g = gen()) => (g.next(), g) // annoying prime
+    , prime = (gen, g = gen()) => (g.next(), g) // annoying prime for output generators
     , inputs = {
         array: [0,1,2,3,4,5,6,7,8,9]
       , string: '0123456789'
