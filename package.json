@@ -1,6 +1,6 @@
 {
   "name": "xoox",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "main": "index",
   "scripts": {
     "build": "npm run rollup && npm run minify && npm run gzip",
