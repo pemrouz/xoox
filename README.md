@@ -4,7 +4,7 @@
 
 * **Tiny:** [~500 Bytes](https://github.com/pemrouz/xoox-transform/blob/master/transform.min.js.gz), or [~800 Bytes](https://github.com/pemrouz/xoox/blob/master/xoox.min.js.gz) with basic operators. You can also ergonmoically compose and/or use the operators standalone. 
 
-* **Universal:** Transform from any type to any other type: Array, Object, String, Number, Function, Generators, Async Generators, Observables (see the [test file](https://github.com/pemrouz/xoox/blob/master/map-fliter-until.test.js) that covers all permutations between these).
+* **Universal:** Transform from any type to any other type: Array, Object, String, Number, Function, Generators, Async Generators, Observables (see the [test file](https://github.com/pemrouz/xoox/blob/master/map-filter-until.test.js) that covers all permutations between these).
 
 * **Fast**: Faster than most.js! There are no intermediate representations created which improves performance all round.
 
@@ -103,7 +103,7 @@ Array.prototype.transform = function(...args){ return transform(this, [])(...arg
 
 For asynchronous but push-based primitives (like Observables), they would need to create a buffer when creating an async iterator. After experimenting with [changing the implementation in emitterify](https://github.com/utilise/emitterify/blob/master/index.js#L163-L187), I think this seems less bad than it appears. Dropping values as a default is a lot worse. Promises are already queued and do this in fact. In order to cause an overflow, i.e. before the microtask queue can be flushed, you'd have to be generating values in a `while (true)`. Additionaly, it's possible to detect or make this bounded and throw if need be (analagous to a stack overflow).
 
-Regardless of all of that, the `Observable.prototype.transform` or other Obseravable-based code could compose the same operators, avoiding creating an async iterator, and pass the composed pipeline directly to the `.each`  function ([test example](https://github.com/pemrouz/xoox/blob/master/map-fliter-until.test.js#L932-L948)). 
+Regardless of all of that, the `Observable.prototype.transform` or other Obseravable-based code could compose the same operators, avoiding creating an async iterator, and pass the composed pipeline directly to the `.each`  function ([test example](https://github.com/pemrouz/xoox/blob/master/map-filter-until.test.js#L932-L948)). 
 
 ```js
 const pipeline = compose(
