@@ -2,7 +2,7 @@
 
 ## Highlights
 
-* **Tiny:** [~500 Bytes](https://github.com/pemrouz/xoox-transform/blob/master/transform.min.js.gz), or [~800 Bytes](https://github.com/pemrouz/xoox/blob/master/xoox.min.js.gz) with basic operators. You can also ergonmoically compose and/or use the operators standalone. 
+* **Tiny:** [~500 Bytes](https://github.com/pemrouz/xoox-transform/blob/master/transform.min.js.gz), or [~800 Bytes](https://github.com/pemrouz/xoox/blob/master/xoox.min.js.gz) with basic operators. You can also compose the operators into a single function and use as a callback standalone. 
 
 * **Universal:** Transform from any type to any other type: Array, Object, String, Number, Function, Generators, Async Generators, Observables (see the [test file](https://github.com/pemrouz/xoox/blob/master/map-filter-until.test.js) that covers all permutations between these).
 
