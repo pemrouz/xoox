@@ -2,7 +2,7 @@
 // of Array, Object, Function, Generator, AsyncGenerator and Observable as the input and output
 // There also tests showing how to compose the operators and use them without the transform helper function
 const { test } = require('tap')
-    , { map, filter, transform, until, compose } = require('./')
+    , { map, filter, reduce, pipe, until, compose } = require('./')
     , observable = require('./observable')
     , prime = (gen, g = gen()) => (g.next(), g) // annoying prime for output generators
     , inputs = {
@@ -12,8 +12,9 @@ const { test } = require('tap')
       , gen: function*(){ for (value of inputs.array) yield value }
       , agen: async function*(){ for (value of inputs.array) yield await value }
       , stream: () => observable(async chan => {
-          for (value of inputs.array)
-            await Promise.all(chan.next(value))
+          let i = 0
+          while (!chan.done && i++ <= inputs.array.length)
+            await Promise.all(chan.next(inputs.array[i-1]))
           chan.stop()
         })
       , function: (i = 0) => () => i++
@@ -23,12 +24,14 @@ const { test } = require('tap')
 test('array -> array', ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.array)(
-      map(v => v * 3)
+    pipe(
+      inputs.array
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
@@ -36,89 +39,103 @@ test('array -> array [existing]', ({ same, plan }) => {
   plan(1)
   
   same(
-    transform(inputs.array, ['foo'])(
-      map(v => v * 3)
+    pipe(
+      inputs.array
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(['foo'])
     )
-  , ['foo', 3, 9, 15]
+  , ['foo', 3, 9, 15, 21]
   )
 })
 
 test('array -> object', ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.array, {})(
-      map(v => v * 3)
+    pipe(
+      inputs.array
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map(v => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('array -> string', ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.array, '')(
-      map(v => v * 3)
+    pipe(
+      inputs.array
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('array -> number', ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.array, 0)(
-      map(v => v * 3)
+    pipe(
+      inputs.array
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('array -> function', ({ same, plan }) => {
   plan(1)
-  const results = []
-
-  transform(inputs.array, d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    pipe(
+      inputs.array
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
 
-  same(results, [3,9,15])
 })
 
 test('array -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(inputs.array, prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  pipe(
+    inputs.array
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('array -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.array, prime(async function*(value){ while (true) { results.push(yield await value) }}))(
-    map(v => v * 3)
+  await pipe(
+    inputs.array
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) results.push(yield await value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('array -> stream', async ({ same, plan }) => {
@@ -128,104 +145,118 @@ test('array -> stream', async ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(inputs.array, out)(
-    map(v => v * 3)
+  pipe(
+    inputs.array
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // object
 test('object -> array', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.object, [])(
-      map(([k,v]) => [k,v*3])
+    pipe(
+      inputs.object
+    , map(([k,v]) => [k,v*3])
     , filter(([k,v]) => v % 2)
-    , until(3)
+    , until(4)
     , map(([k,v]) => v)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('object -> object', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.object)(
-      map(([k,v]) => [k,v*3])
+    pipe(
+      inputs.object
+    , map(([k,v]) => [k,v*3])
     , filter(([k,v]) => v % 2)
-    , until(3)
+    , until(4)
+    , reduce({})
     )
-  , { b:3, d:9, f:15 }
-  )
+  , { b:3, d:9, f:15, h:21 })
 })
 
 test('object -> string', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.object, '')(
-      map(([k,v]) => [k,v*3])
+    pipe(
+      inputs.object
+    , map(([k,v]) => [k,v*3])
     , filter(([k,v]) => v % 2)
     , map(([k,v]) => v)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('object -> number', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.object, 0)(
-      map(([k,v]) => [k,v*3])
+    pipe(
+      inputs.object
+    , map(([k,v]) => [k,v*3])
     , filter(([k,v]) => v % 2)
     , map(([k,v]) => v)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('object -> function', ({ plan, same }) => {
   plan(1)
-  const results = []
-
-  transform(inputs.object, d => results.push(d))(
-    map(([k,v]) => [k,v*3])
-  , filter(([k,v]) => v % 2)
-  , until(3)
+  same(
+    pipe(
+      inputs.object
+    , map(([k,v]) => [k,v*3])
+    , filter(([k,v]) => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [['b',3],['d',9],['f',15],['h',21]]
   )
-
-  same(results, [['b',3],['d',9],['f',15]])
 })
 
 test('object -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(inputs.object, prime(function*(value){ while (true) results.push(yield value) }))(
-    map(([k,v]) => [k,v*3])
+  pipe(
+    inputs.object
+  , map(([k,v]) => [k,v*3])
   , filter(([k,v]) => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [['b',3],['d',9],['f',15]])
+  same(results, [['b',3],['d',9],['f',15],['h',21]])
 })
 
 test('object -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.object, prime(async function*(value){ while (true) { results.push(yield await value) }}))(
-    map(([k,v]) => [k,v*3])
+  await pipe(
+    inputs.object
+  , map(([k,v]) => [k,v*3])
   , filter(([k,v]) => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) { results.push(yield await value) }}))
   )
 
-  same(results, [['b',3],['d',9],['f',15]])
+  same(results, [['b',3],['d',9],['f',15],['h',21]])
 })
 
 test('object -> stream', ({ same, plan }) => {
@@ -235,102 +266,117 @@ test('object -> stream', ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(inputs.object, out)(
-    map(([k,v]) => [k,v*3])
+  pipe(
+    inputs.object
+  , map(([k,v]) => [k,v*3])
   , filter(([k,v]) => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [['b',3],['d',9],['f',15]])
+  same(results, [['b',3],['d',9],['f',15],['h',21]])
 })
 
 // string
 test('string -> array', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.string, [])(
-      map(v => v * 3)
+    pipe(
+      inputs.string
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('string -> object', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.string, {})(
-      map(v => v * 3)
+    pipe(
+      inputs.string
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map((v) => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('string -> string', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.string)(
-      map(v => v * 3)
+    pipe(
+      inputs.string
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('string -> number', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.string, 0)(
-      map(v => v * 3)
+    pipe(
+      inputs.string
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('string -> function', ({ plan, same }) => {
   plan(1)
-  const results = []
-
-  transform(inputs.string, d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    pipe(
+      inputs.string
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-
-  same(results, [3,9,15])
 })
 
 test('string -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(inputs.string, prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  pipe(
+    inputs.string
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('string -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.string, prime(async function*(value){ while (true) { results.push(yield await value) }}))(
-    map(v => v * 3)
+  await pipe(
+    inputs.string
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) { results.push(yield await value) }}))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('string -> stream', ({ same, plan }) => {
@@ -340,102 +386,117 @@ test('string -> stream', ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(inputs.string, out)(
-    map(v => v * 3)
+  pipe(
+    inputs.string
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // number
 test('number -> array', ({ plan, same }) => {
   plan(1)
   same(
-    transform(9, [])(
-      map(v => v * 3)
+    pipe(
+      9
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('number -> object', ({ plan, same }) => {
   plan(1)
   same(
-    transform(9, {})(
-      map(v => v * 3)
+    pipe(
+      9
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map((v) => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('number -> string', ({ plan, same }) => {
   plan(1)
   same(
-    transform(9, '')(
-      map(v => v * 3)
+    pipe(
+      9
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('number -> number', ({ plan, same }) => {
   plan(1)
   same(
-    transform(9)(
-      map(v => v * 3)
+    pipe(
+      9
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('number -> function', ({ plan, same }) => {
   plan(1)
-  const results = []
-
-  transform(9, d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    pipe(
+      9
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-
-  same(results, [3,9,15])
 })
 
 test('number -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(9, prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  pipe(
+    9
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('number -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(9, prime(async function*(value){ while (true) { results.push(yield await value) }}))(
-    map(v => v * 3)
+  await pipe(
+    9
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) { results.push(yield await value) }}))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('number -> stream', ({ same, plan }) => {
@@ -445,102 +506,117 @@ test('number -> stream', ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(9, out)(
-    map(v => v * 3)
+  pipe(
+    9
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // function
 test('function -> array', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.function(), [])(
-      map(v => v * 3)
+    pipe(
+      inputs.function()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('function -> object', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.function(), {})(
-      map(v => v * 3)
+    pipe(
+      inputs.function()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map((v) => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('function -> string', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.function(), '')(
-      map(v => v * 3)
+    pipe(
+      inputs.function()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('function -> number', ({ plan, same }) => {
   plan(1)
   same(
-    transform(inputs.function(), 0)(
-      map(v => v * 3)
+    pipe(
+      inputs.function()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('function -> function', ({ plan, same }) => {
   plan(1)
-  const results = []
-
-  transform(inputs.function(), d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    pipe(
+      inputs.function()
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-
-  same(results, [3,9,15])
 })
 
 test('function -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(inputs.function(), prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  pipe(
+    inputs.function()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('function -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.function(), prime(async function*(value){ while (true) { results.push(yield await value) }}))(
-    map(v => v * 3)
+  await pipe(
+    inputs.function()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) { results.push(yield await value) }}))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('function -> stream', ({ same, plan }) => {
@@ -550,101 +626,116 @@ test('function -> stream', ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(inputs.function(), out)(
-    map(v => v * 3)
+  pipe(
+    inputs.function()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // generator
 test('generator -> array', async ({ same, plan }) => {
   same(
-    transform(inputs.gen(), [])(
-      map(v => v * 3)
+    pipe(
+      inputs.gen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('generator -> object', async ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.gen(), {})(
-      map(v => v * 3)
+    pipe(
+      inputs.gen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map(v => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('generator -> string', async ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.gen(), '')(
-      map(v => v * 3)
+    pipe(
+      inputs.gen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('generator -> number', async ({ same, plan }) => {
   plan(1)
   same(
-    transform(inputs.gen(), 0)(
-      map(v => v * 3)
+    pipe(
+      inputs.gen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('generator -> function', async ({ same, plan }) => {
   plan(1)
-  const results = []
-
-  transform(inputs.gen(), d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    pipe(
+      inputs.gen()
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-
-  same(results, [3,9,15])
 })
 
 test('generator -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  transform(inputs.gen(), prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  pipe(
+    inputs.gen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('generator -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.gen(), prime(async function*(value){ while (true) results.push(yield await value) }))(
-    map(v => v * 3)
+  await pipe(
+    inputs.gen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) results.push(yield await value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('generator -> stream', ({ same, plan }) => {
@@ -654,102 +745,117 @@ test('generator -> stream', ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  transform(inputs.gen(), out)(
-    map(v => v * 3)
+  pipe(
+    inputs.gen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // async generator
 test('async generator -> array', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.agen(), [])(
-      map(v => v * 3)
+    await pipe(
+      inputs.agen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , reduce([])
+    , until(4)
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('async generator -> object', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.agen(), {})(
-      map(v => v * 3)
+    await pipe(
+      inputs.agen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map(v => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('async generator -> string', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.agen(), '')(
-      map(v => v * 3)
+    await pipe(
+      inputs.agen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('async generator -> number', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.agen(), 0)(
-      map(v => v * 3)
+    await pipe(
+      inputs.agen()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('async generator -> function', async ({ same, plan }) => {
   plan(1)
-  const results = []
-
-  await transform(inputs.agen(), d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    await pipe(
+      inputs.agen()
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-
-  same(results, [3,9,15])
 })
 
 test('async generator -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.agen(), prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  await pipe(
+    inputs.agen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('async generator -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.agen(), prime(async function*(value){ while (true) results.push(yield await value) }))(
-    map(v => v * 3)
+  await pipe(
+    inputs.agen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) results.push(yield await value) }))
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('async generator -> stream', async ({ same, plan }) => {
@@ -759,101 +865,116 @@ test('async generator -> stream', async ({ same, plan }) => {
 
   out.each(d => results.push(d))
 
-  await transform(inputs.agen(), out)(
-    map(v => v * 3)
+  await pipe(
+    inputs.agen()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(out)
   )
 
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('stream -> array', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.stream(), [])(
-      map(v => v * 3)
+    await pipe(
+      inputs.stream()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 })
 
 test('stream -> object', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.stream(), {})(
-      map(v => v * 3)
+    await pipe(
+      inputs.stream()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
     , map(v => [v,v])
+    , reduce({})
     )
-  , { 3:3, 9:9, 15:15 }
+  , { 3:3, 9:9, 15:15, 21:21 }
   )
 })
 
 test('stream -> string', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.stream(), '')(
-      map(v => v * 3)
+    await pipe(
+      inputs.stream()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce('')
     )
-  , '3915'
+  , '391521'
   )
 })
 
 test('stream -> number', async ({ same, plan }) => {
   plan(1)
   same(
-    await transform(inputs.stream(), 0)(
-      map(v => v * 3)
+    await pipe(
+      inputs.stream()
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce(0)
     )
-  , 27
+  , 48
   )
 })
 
 test('stream -> function', async ({ same, plan }) => {
   plan(1)
-  const results = []
-
-  await transform(inputs.stream(), d => results.push(d))(
-    map(v => v * 3)
-  , filter(v => v % 2)
-  , until(3)
+  same(
+    await pipe(
+      inputs.stream()
+    , map(v => v * 3)
+    , filter(v => v % 2)
+    , until(4)
+    , reduce((acc, v) => (acc.push(v), acc), [])
+    )
+  , [3,9,15,21]
   )
-  
-  same(results, [3,9,15])
 })
 
 test('stream -> generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.stream(), prime(function*(value){ while (true) results.push(yield value) }))(
-    map(v => v * 3)
+  await pipe(
+    inputs.stream()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(function*(value){ while (true) results.push(yield value) }))
   )
   
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 test('stream -> async generator', async ({ same, plan }) => {
   plan(1)
   const results = []
 
-  await transform(inputs.stream(), prime(async function*(value){ while (true) results.push(yield await value) }))(
-    map(v => v * 3)
+  await pipe(
+    inputs.stream()
+  , map(v => v * 3)
   , filter(v => v % 2)
-  , until(3)
+  , until(4)
+  , reduce(prime(async function*(value){ while (true) results.push(yield await value) }))
   )
   
-  same(results, [3,9,15])
+  same(results, [3,9,15,21])
 })
 
 // extra checks
@@ -862,12 +983,12 @@ test('stream -> stream (unwrap first value)', async ({ same, plan }) => {
   const input = inputs.stream()
 
   same(
-    await transform(input)(
-      map(v => v * 3)
+    await pipe(
+      input
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , filter(v => v > 20)
     )
-  , 21
+  , 27
   )
 
   same(input.li.length, 0)
@@ -882,18 +1003,19 @@ test('stream -> array (early break)', async ({ same, plan }) => {
         })
 
   same(
-    await transform(chan, [])(
-      map(v => v * 3)
+    await pipe(
+      chan
+    , map(v => v * 3)
     , filter(v => v % 2)
-    , until(3)
+    , until(4)
+    , reduce([])
     )
-  , [3,9,15]
+  , [3,9,15,21]
   )
 
   same(chan.li.length, 0)
   same(unsubscribed, ['yes'])
 })
-
 
 test('stream -> stream (wait via producer)', async ({ same, plan }) => {
   plan(1)
@@ -901,9 +1023,11 @@ test('stream -> stream (wait via producer)', async ({ same, plan }) => {
       , out = observable()
       , results = []
 
-  transform(inp, out)(
-    map(v => v * 3)
+  pipe(
+    inp
+  , map(v => v * 3)
   , filter(v => v % 2)
+  , reduce(out)
   )
 
   out.each(d => results.push(d))
@@ -916,9 +1040,11 @@ test('stream -> stream (wait via transform)', async ({ same, plan }) => {
   const inp = observable()
       , out = observable()
       , results = []
-      , done = transform(inp, out)(
-          map(v => v * 3)
+      , done = pipe(
+          inp
+        , map(v => v * 3)
         , filter(v => v % 2)
+        , reduce(out)
         )
 
   out.each(d => results.push(d))
@@ -933,14 +1059,13 @@ test('stream - without async iterator', async ({ same, plan }) => {
   plan(1)
   const input = observable()
       , results = []
-      , next = (n, d) => n.next(d)
       , pipeline = compose(
           map(v => v * 3)
         , filter(v => v % 2)
-        )(next)
+        )
 
   input
-    .each((d, i, n) => pipeline(n,d))
+    .each((d, i, n) => pipeline(n.next)(d))
     .each(d => results.push(d))
 
   inputs.array.map(d => input.next(d))
@@ -955,7 +1080,7 @@ test('without helper functions (array.reduce)', async ({ same, plan }) => {
         )
 
   same(
-    inputs.array.reduce(pipeline((acc, d) => acc.concat(d)), [])
+    inputs.array.reduce((acc, v) => (pipeline(v => acc.push(v))(v), acc), [])
   , [3,9,15,21,27]
   )
 })
@@ -965,8 +1090,10 @@ test('piping to null', async ({ same, plan }) => {
   const results = []
 
   same(
-    transform(inputs.array, null)(
-      map(d => results.push(d))
+    pipe(
+      inputs.array
+    , map(d => results.push(d))
+    , reduce(null)
     )
   , null
   )
